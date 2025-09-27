@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>CMGAP提字器</title>
+    <style>
+        :root {
+            --harmony-scale: 1;
+            /* 添加变量方便维护 */
+            --header-height: 20px;
+            --controls-height: auto;
+            --editor-height: 60px;
+        }
+        
+        body {
+            font-family: "HarmonyOS Sans", Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #222;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            touch-action: none;
+            /* 添加溢出控制 */
+            overflow: hidden;
+        }
+        
+        .header {
+            background-color: #333;
+            padding: 1px;
+            text-align: center;
+            flex-shrink: 0;
+            height: var(--header-height);
+            overflow: hidden;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            padding: 2px;
+            background-color: #444;
+            gap: 3px;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+            height: var(--controls-height);
+            min-height: 20px;
+        }
+        
+        /* 保持其他样式不变 */
+        button {
+            padding: 5px 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            min-width: 15px;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background-color: #555;
+            padding: 3px 6px;
+            border-radius: 6px;
+        }
+        
+        .teleprompter {
+            /* 修改为flex-shrink: 1，允许适当收缩 */
+            flex: 1 1 auto;
+            overflow: hidden;
+            position: relative;
+            background-color: black;
+            margin: 10px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            touch-action: none;
+            /* 确保不会超出容器 */
+            max-height: calc(100vh - var(--header-height) - var(--controls-height) - var(--editor-height) - 20px);
+        }
+        
+        .text-container {
+            width: 96%;
+            height: 96%;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        #prompter-text {
+            font-size: calc(28px * var(--harmony-scale));
+            line-height: 1.8;
+            color: white;
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            transition: transform 0.1s linear;
+            user-select: none;
+            padding: 15px;
+            box-sizing: border-box;
+            font-weight: 500;
+            will-change: transform;
+            white-space: pre-line;
+            text-indent: 2em;
+        }
+        
+        textarea {
+            width: 96%;
+            /* 固定高度并添加最小高度 */
+            height: var(--editor-height);
+            min-height: 60px;
+            margin: 5px auto;
+            display: block;
+            padding: 8px;
+            font-size: 32px;
+            border-radius: 6px;
+            border: none;
+            /* 确保在iOS上可交互 */
+            -webkit-appearance: none;
+            appearance: none;
+            /* 防止被遮挡 */
+            z-index: 10;
+            position: relative;
+        }
+        
+        .mirror {
+            transform: scaleX(-1);
+        }
+        
+        #file-input {
+            display: none;
+        }
+        
+        /* 小屏幕设备优化 */
+        @media screen and (max-width: 360px) {
+            #prompter-text {
+                font-size: calc(26px * var(--harmony-scale));
+            }
+            button {
+                padding: 8px 12px;
+                min-width: 50px;
+                font-size: 28px;
+            }
+        }
+
+        /* 横屏深度优化 */
+        @media screen and (orientation: landscape) {
+            .header {
+                display: none; /* 隐藏标题栏 */
+            }
+            
+            .teleprompter {
+                margin: 2px;
+                /* 调整横屏时的高度计算 */
+                height: calc(100vh - var(--controls-height) - var(--editor-height) - 10px);
+            }
+            
+            .text-container {
+                width: 99%;
+                height: 98% !important;
+            }
+            
+            #prompter-text {
+                font-size: calc(26px * var(--harmony-scale));
+                padding: 10px;
+            }
+            
+            .controls {
+                padding: 4px;
+                gap: 4px;
+            }
+            
+            .control-group {
+                padding: 4px 8px;
+            }
+            
+            button {
+                padding: 8px 10px;
+                min-width: 50px;
+            }
+            
+            textarea {
+                height: 50px; /* 减小输入框高度 */
+                margin: 3px auto;
+            }
+        }
+
+        /* 针对iOS设备的特殊处理 */
+        @supports (-webkit-overflow-scrolling: touch) {
+            body {
+                height: -webkit-fill-available;
+            }
+            
+            .teleprompter {
+                flex: 1;
+                max-height: none;
+            }
+            
+            textarea {
+                /* 确保iOS上键盘弹出时不会被遮挡 */
+                bottom: 0;
+                left: 0;
+                right: 0;
+                margin: 5px auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 保持HTML结构不变 -->
+    <div class="header">
+        <h1>CMGAP提字器</h1>
+    </div>
+    
+    <div class="controls">
+        <div class="control-group">
+            <button id="start-btn">开始</button>
+            <button id="pause-btn" disabled>暂停</button>
+            <button id="reset-btn">重置</button>
+        </div>
+        
+        <div class="control-group">
+            <label for="speed">速度:</label>
+            <input type="range" id="speed" min="1" max="20" value="5">
+            <span id="speed-value">5</span>
+        </div>
+        
+        <div class="control-group">
+            <label for="font-size">字体:</label>
+            <input type="range" id="font-size" min="16" max="48" value="28">
+            <span id="font-size-value">28px</span>
+        </div>
+        
+        <div class="control-group">
+            <button id="mirror-btn">镜像模式</button>
+            <button id="open-file-btn">打开文件</button>
+            <input type="file" id="file-input" accept=".txt,.text">
+        </div>
+    </div>
+    
+    <div class="teleprompter" id="teleprompter-area">
+        <div class="text-container">
+            <div id="prompter-text">在这里输入您的文本。点击"开始"按钮开始滚动，使用速度滑块调整滚动速度。</div>
+        </div>
+    </div>
+    
+    <textarea id="input-text" placeholder="在此输入您的提词文本..."></textarea>
+    
+    <script>
+        // 鸿蒙系统检测与优化
+        const isHarmonyOS = /HarmonyOS|HMOS/.test(navigator.userAgent);
+        if (isHarmonyOS) {
+            document.documentElement.style.setProperty('--harmony-scale', '1.1');
+            console.log('鸿蒙系统优化已启用');
+        }
+        
+        // 检测iOS设备
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        if (isIOS) {
+            document.documentElement.classList.add('ios-device');
+            console.log('iOS设备优化已启用');
+        }
+        
+        // 获取DOM元素
+        const startBtn = document.getElementById('start-btn');
+        const pauseBtn = document.getElementById('pause-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const mirrorBtn = document.getElementById('mirror-btn');
+        const openFileBtn = document.getElementById('open-file-btn');
+        const fileInput = document.getElementById('file-input');
+        const speedSlider = document.getElementById('speed');
+        const speedValue = document.getElementById('speed-value');
+        const fontSizeSlider = document.getElementById('font-size');
+        const fontSizeValue = document.getElementById('font-size-value');
+        const prompterText = document.getElementById('prompter-text');
+        const inputText = document.getElementById('input-text');
+        const textContainer = document.querySelector('.text-container');
+        const teleprompterArea = document.getElementById('teleprompter-area');
+        
+        // 初始化变量
+        let isPlaying = false;
+        let animationId;
+        let position = 0;
+        let speed = 5;
+        let fontSize = 28;
+        let touchStartY = 0;
+        let touchStartPosition = 0;
+        let isTouchMoving = false;
+        let touchCount = 0;
+        let lastTouchTime = 0;
+                
+        // 自动调整初始字体大小
+        function adjustInitialFontSize() {
+            const screenHeight = window.innerHeight;
+            if (screenHeight < 600) {
+                fontSize = 26;
+            } else if (screenHeight > 800) {
+                fontSize = 32;
+            }
+            fontSizeSlider.value = fontSize;
+            prompterText.style.fontSize = fontSize + 'px';
+            fontSizeValue.textContent = fontSize + 'px';
+        }
+        
+        // 更新速度显示
+        speedSlider.addEventListener('input', function() {
+            speed = parseInt(this.value);
+            speedValue.textContent = speed;
+        });
+        
+        // 更新字体大小
+        fontSizeSlider.addEventListener('input', function() {
+            fontSize = parseInt(this.value);
+            fontSizeValue.textContent = fontSize + 'px';
+            prompterText.style.fontSize = fontSize + 'px';
+        });
+        
+        // 开始滚动
+        function startScrolling() {
+            if (!isPlaying) {
+                isPlaying = true;
+                startBtn.disabled = true;
+                pauseBtn.disabled = false;
+                animate();
+            }
+        }
+        
+        // 暂停滚动
+        function pauseScrolling() {
+            if (isPlaying) {
+                isPlaying = false;
+                startBtn.disabled = false;
+                pauseBtn.disabled = true;
+                cancelAnimationFrame(animationId);
+            }
+        }
+        
+        startBtn.addEventListener('click', startScrolling);
+        pauseBtn.addEventListener('click', pauseScrolling);
+        
+        // 重置位置
+        resetBtn.addEventListener('click', function() {
+            isPlaying = false;
+            startBtn.disabled = false;
+            pauseBtn.disabled = true;
+            cancelAnimationFrame(animationId);
+            position = 0;
+            updatePosition();
+        });
+        
+        // 镜像模式
+        mirrorBtn.addEventListener('click', function() {
+            prompterText.classList.toggle('mirror');
+        });
+        
+        // 打开本地文件
+        openFileBtn.addEventListener('click', function() {
+            fileInput.click();
+        });
+        
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            if (file.size > 10 * 1024 * 1024) {
+                alert('文件太大，请选择小于10MB的文件');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const content = e.target.result;
+                prompterText.textContent = content;
+                inputText.value = content;
+            };
+            reader.onerror = function() {
+                alert('读取文件时出错');
+            };
+            reader.readAsText(file);
+        });
+        
+        // 更新文本内容
+        inputText.addEventListener('input', function() {
+            prompterText.textContent = this.value || "在这里输入您的文本。点击\"开始\"按钮开始滚动，使用速度滑块调整滚动速度。";
+        });
+        
+        // 动画函数
+        function animate() {
+            position += speed / 10;
+            updatePosition();
+            
+            if (isPlaying) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+        
+        // 更新文本位置
+        function updatePosition() {
+            const containerHeight = textContainer.clientHeight;
+            const textHeight = prompterText.clientHeight;
+            
+            if (position > textHeight) {
+                isPlaying = false;
+                startBtn.disabled = false;
+                pauseBtn.disabled = true;
+                return;
+            }
+            
+            if (position < 0) {
+                position = 0;
+            }
+            
+            prompterText.style.transform = `translateY(-${position}px)`;
+        }
+        
+
+        // 触摸事件处理
+        teleprompterArea.addEventListener('touchstart', function(e) {
+            const now = Date.now();
+            
+            if (now - lastTouchTime < 300) {
+                touchCount++;
+                if (touchCount === 2) {
+                    if (isPlaying) {
+                        pauseScrolling();
+                    } else {
+                        startScrolling();
+                    }
+                    e.preventDefault();
+                    return;
+                }
+            } else {
+                touchCount = 1;
+            }
+            lastTouchTime = now;
+            
+            if (isPlaying) {
+                pauseScrolling();
+            }
+            
+            touchStartY = e.touches[0].clientY;
+            touchStartPosition = position;
+            isTouchMoving = true;
+            e.preventDefault();
+        });
+        
+        teleprompterArea.addEventListener('touchmove', function(e) {
+            if (!isTouchMoving) return;
+            
+            const touchY = e.touches[0].clientY;
+            const deltaY = touchY - touchStartY;
+            position = touchStartPosition - deltaY;
+            
+            updatePosition();
+            e.preventDefault();
+        });
+        
+        teleprompterArea.addEventListener('touchend', function(e) {
+            isTouchMoving = false;
+            setTimeout(() => { touchCount = 0; }, 300);
+            e.preventDefault();
+        });
+        
+        document.addEventListener('gesturestart', function(e) {
+            e.preventDefault();
+        });
+        
+        // 窗口大小变化时重新计算布局
+        window.addEventListener('resize', function() {
+            setTimeout(() => {
+                position = Math.min(position, prompterText.clientHeight);
+                updatePosition();
+                // 确保文本编辑区域可见
+                if (isIOS) {
+                    inputText.scrollIntoView(false);
+                }
+            }, 300);
+        });
+        
+        function init() {
+            adjustInitialFontSize();
+            textContainer.style.height = '92%';
+            
+            // iOS初始化时确保文本区域可见
+            if (isIOS) {
+                setTimeout(() => {
+                    inputText.scrollIntoView(false);
+                }, 500);
+            }
+        }
+        
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
