@@ -19,7 +19,7 @@
             flex-direction: column;
             height: 100vh;
             touch-action: none;
-            -webkit-overflow-scrolling: touch; /* iOS滚动优化 */
+            -webkit-overflow-scrolling: touch;
         }
         
         .header {
@@ -96,15 +96,15 @@
             height: 96%;
             overflow: hidden;
             position: relative;
-            display: flex; /* iOS优化：添加flex布局 */
-            justify-content: center; /* iOS优化：水平居中 */
+            display: flex;
+            justify-content: center;
         }
         
         #prompter-text {
             font-size: calc(28px * var(--harmony-scale));
             line-height: 1.8;
             color: white;
-            position: relative; /* iOS优化：改为相对定位 */
+            position: relative;
             width: 100%;
             text-align: center;
             transition: transform 0.1s linear;
@@ -115,20 +115,20 @@
             will-change: transform;
             white-space: pre-line;
             text-indent: 2em;
-            margin: 0; /* iOS优化：确保没有外边距 */
+            margin: 0;
         }
         
         textarea {
             width: 96%;
-            min-height: 60px; /* iOS优化：改为min-height */
-            height: auto; /* iOS优化：添加自适应高度 */
+            min-height: 60px;
+            height: auto;
             margin: 5px auto;
             display: block;
             padding: 8px;
             font-size: 32px;
             border-radius: 6px;
             border: none;
-            flex-shrink: 0; /* iOS优化：防止被压缩 */
+            flex-shrink: 0;
         }
         
         .mirror {
@@ -139,7 +139,6 @@
             display: none;
         }
         
-        /* 小屏幕设备优化 */
         @media screen and (max-width: 360px) {
             #prompter-text {
                 font-size: calc(26px * var(--harmony-scale));
@@ -151,7 +150,6 @@
             }
         }
 
-        /* 横屏深度优化 */
         @media screen and (orientation: landscape) {
             .header {
                 display: none;
@@ -160,7 +158,7 @@
             .teleprompter {
                 margin: 2px;
                 height: calc(100vh - 60px);
-                -webkit-overflow-scrolling: touch; /* iOS优化 */
+                -webkit-overflow-scrolling: touch;
             }
             
             .text-container {
@@ -188,21 +186,18 @@
             }
             
             textarea {
-                min-height: 50px; /* iOS优化：改为min-height */
-                height: auto; /* iOS优化：添加自适应高度 */
+                min-height: 50px;
+                height: auto;
                 margin: 3px auto;
             }
             
-            /* iOS横屏特定优化 */
             body {
                 height: 100vh;
                 overflow: hidden;
             }
         }
         
-        /* iOS特定优化 */
         @media screen and (max-width: 768px) {
-            /* 确保在iOS上textarea可见 */
             textarea {
                 -webkit-appearance: none;
                 border-radius: 6px;
@@ -264,11 +259,9 @@
         
         // iOS特定优化
         if (isIOS) {
-            // 添加iOS特定的样式调整
             document.body.style.webkitUserSelect = 'none';
             document.body.style.webkitTouchCallout = 'none';
             
-            // 防止弹性滚动
             document.addEventListener('touchmove', function(e) {
                 if (e.scale !== 1) {
                     e.preventDefault();
@@ -305,6 +298,7 @@
         let isTouchMoving = false;
         let touchCount = 0;
         let lastTouchTime = 0;
+        let textHeight = 0; // 新增：存储文本高度
                 
         // 自动调整初始字体大小
         function adjustInitialFontSize() {
@@ -330,7 +324,26 @@
             fontSize = parseInt(this.value);
             fontSizeValue.textContent = fontSize + 'px';
             prompterText.style.fontSize = fontSize + 'px';
+            // 字体大小改变后重新计算文本高度
+            setTimeout(calculateTextHeight, 100);
         });
+        
+        // 计算文本实际高度（修复滚动不完整问题）
+        function calculateTextHeight() {
+            // 保存当前transform状态
+            const currentTransform = prompterText.style.transform;
+            
+            // 临时移除transform以获取正确高度
+            prompterText.style.transform = 'none';
+            
+            // 获取文本的实际高度
+            textHeight = prompterText.scrollHeight;
+            
+            // 恢复transform
+            prompterText.style.transform = currentTransform;
+            
+            console.log('文本高度计算完成:', textHeight, 'px');
+        }
         
         // 开始滚动
         function startScrolling() {
@@ -338,6 +351,10 @@
                 isPlaying = true;
                 startBtn.disabled = true;
                 pauseBtn.disabled = false;
+                
+                // 开始前重新计算文本高度
+                calculateTextHeight();
+                
                 animate();
             }
         }
@@ -389,6 +406,9 @@
                 const content = e.target.result;
                 prompterText.textContent = content;
                 inputText.value = content;
+                
+                // 文件加载后重新计算文本高度
+                setTimeout(calculateTextHeight, 100);
             };
             reader.onerror = function() {
                 alert('读取文件时出错');
@@ -399,6 +419,9 @@
         // 更新文本内容
         inputText.addEventListener('input', function() {
             prompterText.textContent = this.value || "在这里输入您的文本。点击\"开始\"按钮开始滚动，使用速度滑块调整滚动速度。";
+            
+            // 文本更新后重新计算高度
+            setTimeout(calculateTextHeight, 100);
         });
         
         // 动画函数
@@ -411,15 +434,16 @@
             }
         }
         
-        // 更新文本位置
+        // 更新文本位置（修复滚动结束判断）
         function updatePosition() {
             const containerHeight = textContainer.clientHeight;
-            const textHeight = prompterText.clientHeight;
             
-            if (position > textHeight) {
+            // 使用计算得到的文本高度而不是clientHeight
+            if (position > textHeight - containerHeight) {
                 isPlaying = false;
                 startBtn.disabled = false;
                 pauseBtn.disabled = true;
+                console.log('滚动完成，文本高度:', textHeight, '容器高度:', containerHeight, '最终位置:', position);
                 return;
             }
             
@@ -483,7 +507,9 @@
         
         window.addEventListener('orientationchange', function() {
             setTimeout(() => {
-                position = Math.min(position, prompterText.clientHeight);
+                // 屏幕方向改变后重新计算文本高度
+                calculateTextHeight();
+                position = Math.min(position, textHeight - textContainer.clientHeight);
                 updatePosition();
             }, 300);
         });
@@ -491,6 +517,9 @@
         function init() {
             adjustInitialFontSize();
             textContainer.style.height = '92%';
+            
+            // 初始化时计算文本高度
+            setTimeout(calculateTextHeight, 500);
         }
         
         window.addEventListener('load', init);
