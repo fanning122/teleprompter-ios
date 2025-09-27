@@ -7,10 +7,6 @@
     <style>
         :root {
             --harmony-scale: 1;
-            /* 添加变量方便维护 */
-            --header-height: 20px;
-            --controls-height: auto;
-            --editor-height: 60px;
         }
         
         body {
@@ -23,8 +19,7 @@
             flex-direction: column;
             height: 100vh;
             touch-action: none;
-            /* 添加溢出控制 */
-            overflow: hidden;
+            -webkit-overflow-scrolling: touch; /* iOS滚动优化 */
         }
         
         .header {
@@ -32,8 +27,14 @@
             padding: 1px;
             text-align: center;
             flex-shrink: 0;
-            height: var(--header-height);
+            height: 20px;
             overflow: hidden;
+        }
+        
+        .header h1 {
+            font-size: 16px;
+            margin: 0;
+            line-height: 28px;
         }
         
         .controls {
@@ -44,11 +45,10 @@
             gap: 3px;
             flex-wrap: wrap;
             flex-shrink: 0;
-            height: var(--controls-height);
+            height: auto;
             min-height: 20px;
         }
         
-        /* 保持其他样式不变 */
         button {
             padding: 5px 10px;
             background-color: #4CAF50;
@@ -79,8 +79,7 @@
         }
         
         .teleprompter {
-            /* 修改为flex-shrink: 1，允许适当收缩 */
-            flex: 1 1 auto;
+            flex: 1;
             overflow: hidden;
             position: relative;
             background-color: black;
@@ -90,8 +89,6 @@
             justify-content: center;
             align-items: center;
             touch-action: none;
-            /* 确保不会超出容器 */
-            max-height: calc(100vh - var(--header-height) - var(--controls-height) - var(--editor-height) - 20px);
         }
         
         .text-container {
@@ -99,13 +96,15 @@
             height: 96%;
             overflow: hidden;
             position: relative;
+            display: flex; /* iOS优化：添加flex布局 */
+            justify-content: center; /* iOS优化：水平居中 */
         }
         
         #prompter-text {
             font-size: calc(28px * var(--harmony-scale));
             line-height: 1.8;
             color: white;
-            position: absolute;
+            position: relative; /* iOS优化：改为相对定位 */
             width: 100%;
             text-align: center;
             transition: transform 0.1s linear;
@@ -116,25 +115,20 @@
             will-change: transform;
             white-space: pre-line;
             text-indent: 2em;
+            margin: 0; /* iOS优化：确保没有外边距 */
         }
         
         textarea {
             width: 96%;
-            /* 固定高度并添加最小高度 */
-            height: var(--editor-height);
-            min-height: 60px;
+            min-height: 60px; /* iOS优化：改为min-height */
+            height: auto; /* iOS优化：添加自适应高度 */
             margin: 5px auto;
             display: block;
             padding: 8px;
             font-size: 32px;
             border-radius: 6px;
             border: none;
-            /* 确保在iOS上可交互 */
-            -webkit-appearance: none;
-            appearance: none;
-            /* 防止被遮挡 */
-            z-index: 10;
-            position: relative;
+            flex-shrink: 0; /* iOS优化：防止被压缩 */
         }
         
         .mirror {
@@ -160,13 +154,13 @@
         /* 横屏深度优化 */
         @media screen and (orientation: landscape) {
             .header {
-                display: none; /* 隐藏标题栏 */
+                display: none;
             }
             
             .teleprompter {
                 margin: 2px;
-                /* 调整横屏时的高度计算 */
-                height: calc(100vh - var(--controls-height) - var(--editor-height) - 10px);
+                height: calc(100vh - 60px);
+                -webkit-overflow-scrolling: touch; /* iOS优化 */
             }
             
             .text-container {
@@ -194,34 +188,31 @@
             }
             
             textarea {
-                height: 50px; /* 减小输入框高度 */
+                min-height: 50px; /* iOS优化：改为min-height */
+                height: auto; /* iOS优化：添加自适应高度 */
                 margin: 3px auto;
             }
-        }
-
-        /* 针对iOS设备的特殊处理 */
-        @supports (-webkit-overflow-scrolling: touch) {
+            
+            /* iOS横屏特定优化 */
             body {
-                height: -webkit-fill-available;
+                height: 100vh;
+                overflow: hidden;
             }
-            
-            .teleprompter {
-                flex: 1;
-                max-height: none;
-            }
-            
+        }
+        
+        /* iOS特定优化 */
+        @media screen and (max-width: 768px) {
+            /* 确保在iOS上textarea可见 */
             textarea {
-                /* 确保iOS上键盘弹出时不会被遮挡 */
-                bottom: 0;
-                left: 0;
-                right: 0;
-                margin: 5px auto;
+                -webkit-appearance: none;
+                border-radius: 6px;
+                background-color: white;
+                color: black;
             }
         }
     </style>
 </head>
 <body>
-    <!-- 保持HTML结构不变 -->
     <div class="header">
         <h1>CMGAP提字器</h1>
     </div>
@@ -261,6 +252,9 @@
     <textarea id="input-text" placeholder="在此输入您的提词文本..."></textarea>
     
     <script>
+        // 检测iOS设备
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        
         // 鸿蒙系统检测与优化
         const isHarmonyOS = /HarmonyOS|HMOS/.test(navigator.userAgent);
         if (isHarmonyOS) {
@@ -268,11 +262,20 @@
             console.log('鸿蒙系统优化已启用');
         }
         
-        // 检测iOS设备
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        // iOS特定优化
         if (isIOS) {
-            document.documentElement.classList.add('ios-device');
-            console.log('iOS设备优化已启用');
+            // 添加iOS特定的样式调整
+            document.body.style.webkitUserSelect = 'none';
+            document.body.style.webkitTouchCallout = 'none';
+            
+            // 防止弹性滚动
+            document.addEventListener('touchmove', function(e) {
+                if (e.scale !== 1) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
+            
+            console.log('iOS优化已启用');
         }
         
         // 获取DOM元素
@@ -427,7 +430,6 @@
             prompterText.style.transform = `translateY(-${position}px)`;
         }
         
-
         // 触摸事件处理
         teleprompterArea.addEventListener('touchstart', function(e) {
             const now = Date.now();
@@ -479,28 +481,16 @@
             e.preventDefault();
         });
         
-        // 窗口大小变化时重新计算布局
-        window.addEventListener('resize', function() {
+        window.addEventListener('orientationchange', function() {
             setTimeout(() => {
                 position = Math.min(position, prompterText.clientHeight);
                 updatePosition();
-                // 确保文本编辑区域可见
-                if (isIOS) {
-                    inputText.scrollIntoView(false);
-                }
             }, 300);
         });
         
         function init() {
             adjustInitialFontSize();
             textContainer.style.height = '92%';
-            
-            // iOS初始化时确保文本区域可见
-            if (isIOS) {
-                setTimeout(() => {
-                    inputText.scrollIntoView(false);
-                }, 500);
-            }
         }
         
         window.addEventListener('load', init);
